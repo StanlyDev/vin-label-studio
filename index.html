@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Label Studio</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg: #000000;
+            --surface: #0d0d0d;
+            --card: #141414;
+            --border: #262626;
+            --border-light: #333333;
+            --text: #f5f5f5;
+            --muted: #555555;
+            --subtle: #1f1f1f;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Syne', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 48px 24px;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        #controles {
+            position: relative;
+            z-index: 1;
+            max-width: 640px;
+            margin: 0 auto;
+        }
+
+        /* HEADER */
+        .header {
+            margin-bottom: 40px;
+            padding-bottom: 32px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-tag {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .header-tag::before {
+            content: '';
+            width: 20px;
+            height: 1px;
+            background: var(--muted);
+        }
+
+        h1 { font-size: 42px; font-weight: 800; line-height: 1.05; letter-spacing: -0.03em; }
+        h1 span { color: #888; }
+
+        .subtitle {
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 10px;
+        }
+
+        /* STATUS */
+        .status-bar {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+            background: var(--subtle);
+            color: #888;
+        }
+        .status-bar.visible { display: flex; }
+        .status-bar.ok  { border-color: #2a3a2a; background: #0d1a0d; color: #5a9e5a; }
+        .status-bar.err { border-color: #3a1a1a; background: #1a0d0d; color: #9e5a5a; }
+
+        .status-dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            flex-shrink: 0;
+            animation: pulse 1.8s infinite;
+        }
+        .status-bar.ok .status-dot,
+        .status-bar.err .status-dot { animation: none; }
+
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+        /* STATS */
+        .stats-grid {
+            display: none;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: var(--border);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .stats-grid.visible { display: grid; }
+
+        .stat { background: var(--card); padding: 20px 16px; text-align: center; }
+
+        .stat-value {
+            font-family: 'Space Mono', monospace;
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text);
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .stat-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+        }
+
+        /* CARD */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .card-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            margin-bottom: 16px;
+        }
+
+        /* UPLOAD */
+        .upload-zone {
+            border: 1px dashed var(--border-light);
+            border-radius: 10px;
+            padding: 36px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        .upload-zone:hover { border-color: #555; background: rgba(255,255,255,0.02); }
+        .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+        .upload-icon { font-size: 28px; margin-bottom: 10px; display: block; filter: grayscale(1); }
+        .upload-text { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+        .upload-hint { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); }
+        #file-name { font-family: 'Space Mono', monospace; font-size: 11px; color: #888; margin-top: 14px; min-height: 16px; }
+
+        /* SELECT */
+        .column-selector { display: none; margin-bottom: 16px; }
+        .column-selector.visible { display: block; }
+
+        select {
+            width: 100%;
+            background: var(--card);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 13px 16px;
+            font-family: 'Space Mono', monospace;
+            font-size: 12px;
+            color: var(--text);
+            cursor: pointer;
+            outline: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23555' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+        }
+        select:focus { border-color: #555; }
+        select option { background: #1a1a1a; }
+        select optgroup { background: #0d0d0d; color: #555; font-size: 10px; letter-spacing: 0.05em; }
+        select optgroup option { color: #f5f5f5; font-size: 12px; }
+
+        /* INPUT */
+        .input-group { margin-bottom: 0; }
+        .input-group + .input-group { margin-top: 12px; }
+
+        .input-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: var(--muted);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .input-row { display: flex; gap: 10px; }
+
+        .input-field {
+            flex: 1;
+            background: var(--subtle);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 13px 16px;
+            font-family: 'Space Mono', monospace;
+            font-size: 12px;
+            color: var(--text);
+            outline: none;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+        .input-field:focus { border-color: #555; }
+        .input-field::placeholder { color: var(--muted); }
+        .input-field:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        /* CONNECTION MODE TABS */
+        .mode-tabs {
+            display: flex;
+            gap: 1px;
+            background: var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--subtle);
+            border: none;
+            color: var(--muted);
+            font-family: 'Space Mono', monospace;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            letter-spacing: 0.05em;
+        }
+
+        .mode-tab:hover { background: #1e1e1e; color: #aaa; }
+
+        .mode-tab.active {
+            background: var(--card);
+            color: var(--text);
+        }
+
+        .mode-tab .tab-icon { font-size: 14px; }
+
+        /* Connection panels */
+        .conn-panel { display: none; }
+        .conn-panel.visible { display: block; }
+
+        /* USB port row with refresh */
+        .usb-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .usb-row .input-group { flex: 1; margin: 0; }
+
+        .btn-icon {
+            background: var(--subtle);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 13px 14px;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+            height: 46px;
+            display: flex;
+            align-items: center;
+        }
+        .btn-icon:hover { border-color: #555; color: var(--text); }
+
+        /* TOGGLE */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+
+        .toggle-info { display: flex; flex-direction: column; gap: 3px; }
+        .toggle-title { font-size: 14px; font-weight: 600; color: var(--text); }
+        .toggle-desc { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); }
+
+        .toggle-switch { position: relative; width: 48px; height: 26px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+        .toggle-track {
+            position: absolute;
+            inset: 0;
+            background: var(--border-light);
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        .toggle-track::after {
+            content: '';
+            position: absolute;
+            top: 3px; left: 3px;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            background: #666;
+            transition: all 0.2s ease;
+        }
+        .toggle-switch input:checked + .toggle-track { background: #ffffff; }
+        .toggle-switch input:checked + .toggle-track::after { left: 25px; background: #000; }
+
+        /* ACTIONS */
+        .actions { display: flex; gap: 10px; margin-bottom: 16px; }
+
+        .btn {
+            font-family: 'Syne', sans-serif;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 15px 28px;
+            border-radius: 10px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 0.02em;
+        }
+
+        .btn-primary { background: #ffffff; color: #000000; flex: 1; }
+        .btn-primary:hover { background: #e8e8e8; transform: translateY(-1px); box-shadow: 0 8px 28px rgba(255,255,255,0.1); }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-primary:disabled { background: #2a2a2a; color: #555; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        .btn-secondary { background: transparent; color: #888; border: 1px solid var(--border-light); }
+        .btn-secondary:hover { border-color: #555; color: var(--text); transform: translateY(-1px); }
+
+        /* ZPL PREVIEW */
+        .zpl-preview { display: none; margin-top: 16px; }
+        .zpl-preview.visible { display: block; }
+
+        .zpl-box {
+            background: #0a0a0a;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            font-family: 'Space Mono', monospace;
+            font-size: 10px;
+            color: #555;
+            max-height: 120px;
+            overflow-y: auto;
+            white-space: pre;
+            line-height: 1.6;
+        }
+        .zpl-box::-webkit-scrollbar { width: 4px; }
+        .zpl-box::-webkit-scrollbar-track { background: transparent; }
+        .zpl-box::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<div id="controles">
+
+    <div class="header">
+        <div class="header-tag">Label Studio · Zebra ZT231</div>
+        <h1>Generador de<br><span>Etiquetas</span></h1>
+        <p class="subtitle">// Impresión continua ZPL · 2 × 1 pulgadas · Red / USB</p>
+    </div>
+
+    <!-- STATUS -->
+    <div class="status-bar" id="statusBar">
+        <div class="status-dot"></div>
+        <span id="statusText">Procesando...</span>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat">
+            <div class="stat-value" id="statCodes">0</div>
+            <div class="stat-label">Códigos</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="statSheets">0</div>
+            <div class="stat-label">Etiquetas</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="statLabels">—</div>
+            <div class="stat-label">Modo</div>
+        </div>
+    </div>
+
+    <!-- 01 ARCHIVO -->
+    <div class="card">
+        <div class="card-label">// 01 — Archivo de datos</div>
+        <div class="upload-zone">
+            <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" onchange="cargarColumnas(this)" />
+            <span class="upload-icon">📂</span>
+            <div class="upload-text">Arrastra tu archivo o haz clic</div>
+            <div class="upload-hint">.xlsx · .xls · .csv</div>
+            <div id="file-name"></div>
+        </div>
+    </div>
+
+    <!-- 02 COLUMNA -->
+    <div class="card column-selector" id="columnCard">
+        <div class="card-label">// 02 — Columna a usar</div>
+        <select id="columnSelect">
+            <option value="">— elige una columna —</option>
+        </select>
+    </div>
+
+    <!-- 03 CONEXIÓN -->
+    <div class="card">
+        <div class="card-label">// 03 — Conexión con la Zebra</div>
+
+        <!-- Tabs -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" id="tabNet" onclick="setMode('network')">
+                <span class="tab-icon">🌐</span> Red (Ethernet / WiFi)
+            </button>
+            <button class="mode-tab" id="tabUsb" onclick="setMode('usb')">
+                <span class="tab-icon">🔌</span> USB / Puerto COM
+            </button>
+        </div>
+
+        <!-- Panel RED -->
+        <div class="conn-panel visible" id="panelNetwork">
+            <div class="input-row">
+                <div class="input-group" style="flex:1">
+                    <label class="input-label">IP de la impresora</label>
+                    <input class="input-field" type="text" id="zebraIP" placeholder="192.168.1.100" value="192.168.1.100" />
+                </div>
+                <div class="input-group" style="width:110px">
+                    <label class="input-label">Puerto TCP</label>
+                    <input class="input-field" type="number" id="zebraPort" placeholder="9100" value="9100" />
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel USB -->
+        <div class="conn-panel" id="panelUsb">
+            <div class="input-group">
+                <label class="input-label">Puerto COM / Dispositivo</label>
+                <div class="usb-row">
+                    <div class="input-group">
+                        <select id="comPortSelect">
+                            <option value="">— detectando puertos... —</option>
+                        </select>
+                    </div>
+                    <button class="btn-icon" onclick="detectarPuertos()" title="Refrescar puertos">🔄</button>
+                </div>
+            </div>
+            <p style="font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);margin-top:10px;">
+                Windows: COM3, COM4… · Linux/Mac: /dev/usb/lp0, /dev/ttyUSB0
+            </p>
+        </div>
+    </div>
+
+    <!-- 04 OPCIONES -->
+    <div class="card">
+        <div class="card-label">// 04 — Opciones de etiqueta</div>
+        <div class="toggle-row">
+            <div class="toggle-info">
+                <span class="toggle-title">Incluir código QR</span>
+                <span class="toggle-desc">QR escaneable junto al texto</span>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="qrToggle" checked />
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- ACCIONES -->
+    <div class="actions">
+        <button class="btn btn-primary" id="btnEnviar" onclick="generarYEnviar()">
+            🖨 Enviar a Zebra
+        </button>
+        <button class="btn btn-secondary" onclick="guardarZPL()">
+            💾 Guardar ZPL
+        </button>
+        <button class="btn btn-secondary" id="btnTest" onclick="imprimirPrueba()" title="Imprime una etiqueta TEST para verificar conexión">
+            🧪 Test
+        </button>
+    </div>
+
+    <!-- PREVIEW ZPL -->
+    <div class="zpl-preview" id="zplPreview">
+        <div class="card-label" style="margin-bottom:8px">// Vista previa ZPL generado</div>
+        <div class="zpl-box" id="zplBox"></div>
+    </div>
+
+</div>
+
+<script>
+    let datosGlobales = [];
+    let zplGenerado   = '';
+    let modoConexion  = 'network'; // 'network' | 'usb'
+    let portsData     = []; // almacena {id, name, printerName} de cada puerto
+
+    // ─── Modo de conexión ─────────────────────────────────────────────────────
+    function setMode(mode) {
+        modoConexion = mode;
+
+        document.getElementById('tabNet').classList.toggle('active', mode === 'network');
+        document.getElementById('tabUsb').classList.toggle('active', mode === 'usb');
+        document.getElementById('panelNetwork').classList.toggle('visible', mode === 'network');
+        document.getElementById('panelUsb').classList.toggle('visible', mode === 'usb');
+
+        if (mode === 'usb') detectarPuertos();
+    }
+
+    // Palabras clave que identifican impresoras de etiquetas relevantes
+    const ZEBRA_KEYWORDS = ['zebra', 'zt', 'zdesigner', 'zpl', 'tlp', 'gk', 'gx', 'lp28', 'lp24']
+    const SKIP_KEYWORDS  = ['pdf', 'anydesk', 'onenote', 'fax', 'microsoft', 'nul:', 'portprompt']
+
+    function esImpresoraEtiquetas(p) {
+        const n = (p.name || '').toLowerCase()
+        return ZEBRA_KEYWORDS.some(k => n.includes(k))
+    }
+
+    function esIrrelevante(p) {
+        const n = (p.name || '').toLowerCase()
+        const id = (p.id || '').toLowerCase()
+        return SKIP_KEYWORDS.some(k => n.includes(k) || id.includes(k))
+    }
+
+    // ─── Detectar puertos COM/USB ──────────────────────────────────────────────
+    async function detectarPuertos() {
+        const sel = document.getElementById('comPortSelect');
+        sel.innerHTML = '<option value="">— buscando... —</option>';
+
+        try {
+            const allPorts = await window.zebraAPI.listComPorts();
+            portsData = allPorts;
+
+            // Separar: Zebras primero, luego otras USB reales, descartar virtuales
+            const zebras  = allPorts.filter(p => esImpresoraEtiquetas(p))
+            const usbReal = allPorts.filter(p => !esImpresoraEtiquetas(p) && !esIrrelevante(p) && p.id.toUpperCase().startsWith('USB'))
+            const resto   = allPorts.filter(p => !esImpresoraEtiquetas(p) && !esIrrelevante(p) && !p.id.toUpperCase().startsWith('USB'))
+
+            sel.innerHTML = ''
+
+            if (zebras.length === 0 && usbReal.length === 0 && resto.length === 0) {
+                sel.innerHTML = '<option value="">— ninguna impresora detectada —</option>'
+                return
+            }
+
+            // Grupo Zebra / Impresoras de etiquetas
+            if (zebras.length > 0) {
+                const grp = document.createElement('optgroup')
+                grp.label = '🖨 Impresoras de etiquetas'
+                zebras.forEach(p => {
+                    const opt = document.createElement('option')
+                    opt.value = p.id
+                    opt.textContent = `${p.id} — ${p.name}`
+                    grp.appendChild(opt)
+                })
+                sel.appendChild(grp)
+            }
+
+            // Grupo otras USB
+            if (usbReal.length > 0) {
+                const grp = document.createElement('optgroup')
+                grp.label = 'Otras impresoras USB'
+                usbReal.forEach(p => {
+                    const opt = document.createElement('option')
+                    opt.value = p.id
+                    opt.textContent = `${p.id} — ${p.name}`
+                    grp.appendChild(opt)
+                })
+                sel.appendChild(grp)
+            }
+
+            // Grupo otros puertos (COM, red, etc.)
+            if (resto.length > 0) {
+                const grp = document.createElement('optgroup')
+                grp.label = 'Otros puertos'
+                resto.forEach(p => {
+                    const opt = document.createElement('option')
+                    opt.value = p.id
+                    opt.textContent = `${p.id} — ${p.name}`
+                    grp.appendChild(opt)
+                })
+                sel.appendChild(grp)
+            }
+
+            // Auto-seleccionar la primera Zebra encontrada
+            if (zebras.length > 0) {
+                sel.value = zebras[0].id
+            }
+
+        } catch(e) {
+            sel.innerHTML = '<option value="">— error al detectar —</option>'
+            console.error('detectarPuertos error:', e)
+        }
+    }
+
+    // ─── Cargar columnas del Excel ────────────────────────────────────────────
+    function cargarColumnas(input) {
+        if (!input.files.length) return;
+        const archivo = input.files[0];
+        document.getElementById('file-name').textContent = '✓ ' + archivo.name;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            datosGlobales = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+            if (!datosGlobales.length) return;
+
+            const columnas = Object.keys(datosGlobales[0]);
+            const select = document.getElementById('columnSelect');
+            select.innerHTML = '<option value="">— elige una columna —</option>';
+            columnas.forEach(col => {
+                const opt = document.createElement('option');
+                opt.value = col; opt.textContent = col;
+                select.appendChild(opt);
+            });
+            if (columnas.length === 1) select.value = columnas[0];
+            document.getElementById('columnCard').classList.add('visible');
+        };
+        reader.readAsArrayBuffer(archivo);
+    }
+
+    // ─── Generar ZPL usando configuracion de la impresora ────────────────────
+    // ^JUS  = usar configuracion guardada (tamaño, DPI, tipo de media)
+    // ^MNA  = auto-detectar tipo de media (gap, continuo, black mark)
+    // ^MMT  = modo tear/continuo
+    // ^PQ1  = 1 copia por etiqueta
+    // ─── Generar ZPL — 2×1" (406×203 dots @ 203DPI) ─────────────────────────
+    // Layout con QR:
+    //   [  TEXTO IZQUIERDA  ] [ QR ]
+    //   Área izq: X=0..290, Área QR: X=300..406
+    //   QR módulo 3 = ~75×75 dots → cabe holgado en el lado derecho
+    //
+    // Layout sin QR:
+    //   [        TEXTO CENTRADO        ]
+    //
+    // ^PW406 = ancho 2" | ^LL203 = alto 1" | ambos en dots a 203dpi
+    // ─── Generar ZPL calibrado para 2x1" (406x203 dots) con Auto-Escalado ────
+    function generarZPL(valores, conQR) {
+        let zpl = '';
+
+        valores.forEach(texto => {
+            // Convertimos a string por seguridad para contar los caracteres
+            const txtStr = String(texto);
+            const len = txtStr.length;
+
+            zpl += '^XA\n';
+            zpl += '^MMT\n';     
+            zpl += '^LH0,0\n';   
+
+            if (conQR) {
+                // --- CÓDIGO QR ---
+                // X=275: Empujado al máximo hacia la derecha
+                zpl += '^FO275,40\n';
+                zpl += '^BQN,2,4\n';
+                zpl += `^FDMM,A${txtStr}^FS\n`;
+                
+                // --- TEXTO AUTO-AJUSTABLE ---
+                // Tamaños base por defecto (ideales para 1 a 6 caracteres)
+                let h = 60; 
+                let w = 50; 
+                let y = 75;
+
+                // Cerebro de escalado: Reducimos la fuente si el texto es muy largo
+                if (len > 14) {
+                    h = 35; w = 22; y = 85; // Letra minúscula y delgada para códigos enormes
+                } else if (len > 10) {
+                    h = 45; w = 30; y = 80; // Códigos de ~12 caracteres (como el de tu foto)
+                } else if (len > 6) {
+                    h = 55; w = 40; y = 75; // Códigos intermedios
+                }
+
+                zpl += `^FO20,${y}\n`;
+                zpl += `^A0N,${h},${w}\n`;
+                zpl += `^FD${txtStr}^FS\n`;
+
+            } else {
+                // Solo texto (sin QR) con auto-ajuste también
+                let h = 80; let w = 70; let y = 60;
+                
+                if (len > 14) { h = 50; w = 40; y = 75; }
+                else if (len > 10) { h = 65; w = 55; y = 70; }
+
+                zpl += `^FO0,${y}\n`;
+                zpl += '^FB406,1,0,C,0\n'; // Caja de texto del ancho total
+                zpl += `^A0N,${h},${w}\n`;
+                zpl += `^FD${txtStr}^FS\n`;
+            }
+
+            zpl += '^PQ1\n';
+            zpl += '^XZ\n';
+        });
+
+        return zpl;
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+    function obtenerValores() {
+        const columna = document.getElementById('columnSelect').value;
+        if (!columna) { alert("Selecciona la columna a usar."); return null; }
+        if (!datosGlobales.length) { alert("Sube un archivo primero."); return null; }
+
+        const valores = datosGlobales
+            .map(fila => fila[columna])
+            .filter(v => v !== undefined && v !== null && v.toString().trim() !== '')
+            .map(v => v.toString().trim());
+
+        if (!valores.length) { alert("La columna no tiene datos."); return null; }
+        return valores;
+    }
+
+    function setStatus(msg, tipo = 'loading') {
+        const bar = document.getElementById('statusBar');
+        bar.className = 'status-bar visible' + (tipo === 'ok' ? ' ok' : tipo === 'err' ? ' err' : '');
+        document.getElementById('statusText').textContent = msg;
+    }
+
+    function mostrarStats(valores, modo) {
+        document.getElementById('statsGrid').classList.add('visible');
+        document.getElementById('statCodes').textContent = valores.length;
+        document.getElementById('statSheets').textContent = valores.length;
+        document.getElementById('statLabels').textContent = modo === 'network' ? 'Red' : 'USB';
+    }
+
+    function mostrarPreview(zpl) {
+        document.getElementById('zplPreview').classList.add('visible');
+        document.getElementById('zplBox').textContent = zpl.slice(0, 900) + (zpl.length > 900 ? '\n...' : '');
+    }
+
+    // ─── Enviar a Zebra ───────────────────────────────────────────────────────
+    async function generarYEnviar() {
+        const valores = obtenerValores();
+        if (!valores) return;
+
+        const conQR = document.getElementById('qrToggle').checked;
+        const btn   = document.getElementById('btnEnviar');
+        btn.disabled = true;
+
+        setStatus(`Generando ZPL para ${valores.length} etiqueta(s)...`);
+        zplGenerado = generarZPL(valores, conQR);
+        mostrarStats(valores, modoConexion);
+        mostrarPreview(zplGenerado);
+
+        let result;
+
+        if (modoConexion === 'network') {
+            const ip   = document.getElementById('zebraIP').value.trim();
+            const port = parseInt(document.getElementById('zebraPort').value) || 9100;
+
+            if (!ip) { alert("Ingresa la IP de la impresora."); btn.disabled = false; return; }
+
+            setStatus(`Conectando con Zebra en ${ip}:${port}...`);
+            result = await window.zebraAPI.sendZPLNetwork(ip, port, zplGenerado);
+
+        } else {
+            const comPort = document.getElementById('comPortSelect').value;
+
+            if (!comPort) { alert("Selecciona el puerto USB/COM."); btn.disabled = false; return; }
+
+            const portInfo = portsData.find(p => p.id === comPort);
+            const printerName = portInfo ? portInfo.printerName : null;
+            setStatus(`Enviando a ${comPort}${printerName ? ' (' + printerName + ')' : ''}...`);
+            result = await window.zebraAPI.sendZPLUsb(comPort, printerName, zplGenerado);
+        }
+
+        if (result.ok) {
+            setStatus(`✓ ${valores.length} etiqueta(s) enviadas correctamente`, 'ok');
+        } else {
+            setStatus(`✗ Error: ${result.error}`, 'err');
+        }
+
+        btn.disabled = false;
+    }
+
+    // ─── Guardar ZPL en disco ─────────────────────────────────────────────────
+    async function guardarZPL() {
+        const valores = obtenerValores();
+        if (!valores) return;
+
+        const conQR = document.getElementById('qrToggle').checked;
+        zplGenerado  = generarZPL(valores, conQR);
+
+        setStatus('Abriendo diálogo para guardar...');
+        const result = await window.zebraAPI.saveZPLFile(zplGenerado);
+
+        if (result.ok) {
+            mostrarStats(valores, modoConexion);
+            mostrarPreview(zplGenerado);
+            setStatus(`✓ Archivo guardado: ${result.filePath}`, 'ok');
+        } else if (result.error !== 'Cancelado') {
+            setStatus(`✗ Error al guardar: ${result.error}`, 'err');
+        } else {
+            document.getElementById('statusBar').classList.remove('visible');
+        }
+    }
+    // ─── Imprimir etiqueta de prueba ─────────────────────────────────────────
+    async function imprimirPrueba() {
+        if (modoConexion === 'network') {
+            const ip   = document.getElementById('zebraIP').value.trim();
+            const port = parseInt(document.getElementById('zebraPort').value) || 9100;
+            if (!ip) { alert("Ingresa la IP de la impresora."); return; }
+            setStatus('Enviando prueba por red...');
+            const testZPL = '^XA^MMT^PW406^LL203^FO0,80^FB406,1,0,C,0^A0N,40,40^FDTEST OK^FS^PQ1^XZ';
+            const result = await window.zebraAPI.sendZPLNetwork(ip, port, testZPL);
+            if (result.ok) setStatus('✓ Prueba enviada — revisa si salió papel', 'ok');
+            else setStatus('✗ ' + result.error, 'err');
+        } else {
+            const comPort = document.getElementById('comPortSelect').value;
+            if (!comPort) { alert("Selecciona la impresora USB primero."); return; }
+            const portInfo = portsData.find(p => p.id === comPort);
+            const printerName = portInfo ? portInfo.printerName : null;
+            setStatus(`Enviando prueba a ${comPort}...`);
+            const result = await window.zebraAPI.testPrint(comPort, printerName);
+            if (result.ok) {
+                setStatus('✓ Prueba enviada — revisa si salió papel', 'ok');
+                document.getElementById('zplPreview').classList.add('visible');
+                document.getElementById('zplBox').textContent = result.zpl;
+            } else {
+                setStatus('✗ ' + result.error, 'err');
+            }
+        }
+    }
+</script>
+</body>
+</html>
