@@ -387,7 +387,7 @@
     <div class="header">
         <div class="header-tag">Label Studio · Zebra ZT231</div>
         <h1>Generador de<br><span>Etiquetas</span></h1>
-        <p class="subtitle">// Impresión continua ZPL · 2 × 1 pulgadas · Red / USB</p>
+        <p class="subtitle">// Impresión continua ZPL · 2 × 1 pulgadas · USB</p>
     </div>
 
     <!-- STATUS -->
@@ -427,41 +427,28 @@
     <!-- 02 COLUMNA -->
     <div class="card column-selector" id="columnCard">
         <div class="card-label">// 02 — Columna a usar</div>
-        <select id="columnSelect">
-            <option value="">— elige una columna —</option>
-        </select>
+        <div style="display:flex; gap:12px; flex-direction:column;">
+            <div>
+                <div style="font-size:10px;color:#555;margin-bottom:6px;font-family:'Space Mono',monospace;">TEXTO PRINCIPAL</div>
+                <select id="columnSelect">
+                    <option value="">— elige una columna —</option>
+                </select>
+            </div>
+            <div>
+                <div style="font-size:10px;color:#555;margin-bottom:6px;font-family:'Space Mono',monospace;">FECHA</div>
+                <select id="columnFecha">
+                    <option value="">— elige columna de fecha —</option>
+                </select>
+            </div>
+        </div>
     </div>
 
     <!-- 03 CONEXIÓN -->
     <div class="card">
         <div class="card-label">// 03 — Conexión con la Zebra</div>
 
-        <!-- Tabs -->
-        <div class="mode-tabs">
-            <button class="mode-tab active" id="tabNet" onclick="setMode('network')">
-                <span class="tab-icon">🌐</span> Red (Ethernet / WiFi)
-            </button>
-            <button class="mode-tab" id="tabUsb" onclick="setMode('usb')">
-                <span class="tab-icon">🔌</span> USB / Puerto COM
-            </button>
-        </div>
-
-        <!-- Panel RED -->
-        <div class="conn-panel visible" id="panelNetwork">
-            <div class="input-row">
-                <div class="input-group" style="flex:1">
-                    <label class="input-label">IP de la impresora</label>
-                    <input class="input-field" type="text" id="zebraIP" placeholder="192.168.1.100" value="192.168.1.100" />
-                </div>
-                <div class="input-group" style="width:110px">
-                    <label class="input-label">Puerto TCP</label>
-                    <input class="input-field" type="number" id="zebraPort" placeholder="9100" value="9100" />
-                </div>
-            </div>
-        </div>
-
-        <!-- Panel USB -->
-        <div class="conn-panel" id="panelUsb">
+        <!-- Panel USB (único modo activo) -->
+        <div class="conn-panel visible" id="panelUsb">
             <div class="input-group">
                 <label class="input-label">Puerto COM / Dispositivo</label>
                 <div class="usb-row">
@@ -502,8 +489,8 @@
         <button class="btn btn-secondary" onclick="guardarZPL()">
             💾 Guardar ZPL
         </button>
-        <button class="btn btn-secondary" id="btnTest" onclick="imprimirPrueba()" title="Imprime una etiqueta TEST para verificar conexión">
-            🧪 Test
+        <button class="btn btn-secondary" id="btnPreview" onclick="mostrarPreview()">
+            👁 Preview
         </button>
     </div>
 
@@ -515,10 +502,57 @@
 
 </div>
 
+<!-- MODAL PREVIEW -->
+<div id="previewModal" style="
+    display:none; position:fixed; inset:0; z-index:1000;
+    background:rgba(0,0,0,0.85); backdrop-filter:blur(6px);
+    align-items:center; justify-content:center; flex-direction:column; gap:20px;
+">
+    <div style="font-family:'Syne',sans-serif; color:#555; font-size:11px; letter-spacing:0.1em;">
+        VISTA PREVIA — ETIQUETA <span id="previewIdx">1</span> / <span id="previewTotal">1</span>
+    </div>
+
+    <!-- Etiqueta simulada: 2x1" proporcional -->
+    <div style="position:relative; width:480px; height:240px; background:#fff; border-radius:4px; overflow:hidden; box-shadow:0 0 60px rgba(255,255,255,0.08);">
+        <!-- Guías de borde -->
+        <div style="position:absolute;inset:0;border:1.5px dashed rgba(0,0,0,0.12);border-radius:4px;pointer-events:none;z-index:10;"></div>
+        <canvas id="previewCanvas" width="480" height="240" style="display:block;"></canvas>
+    </div>
+
+    <!-- Navegación -->
+    <div style="display:flex; gap:12px; align-items:center;">
+        <button onclick="previewNav(-1)" style="
+            background:transparent; border:1px solid #333; color:#888;
+            padding:8px 18px; border-radius:6px; font-family:'Space Mono',monospace;
+            font-size:11px; cursor:pointer; transition:all 0.15s;
+        " onmouseover="this.style.borderColor='#666'" onmouseout="this.style.borderColor='#333'">← ANT</button>
+
+        <span id="previewCode" style="
+            font-family:'Space Mono',monospace; font-size:12px; color:#444;
+            min-width:180px; text-align:center;
+        "></span>
+
+        <button onclick="previewNav(1)" style="
+            background:transparent; border:1px solid #333; color:#888;
+            padding:8px 18px; border-radius:6px; font-family:'Space Mono',monospace;
+            font-size:11px; cursor:pointer; transition:all 0.15s;
+        " onmouseover="this.style.borderColor='#666'" onmouseout="this.style.borderColor='#333'">SIG →</button>
+    </div>
+
+    <button onclick="cerrarPreview()" style="
+        background:transparent; border:none; color:#333;
+        font-family:'Space Mono',monospace; font-size:11px;
+        cursor:pointer; letter-spacing:0.05em; padding:4px 12px;
+        transition:color 0.15s;
+    " onmouseover="this.style.color='#666'" onmouseout="this.style.color='#333'">
+        [ CERRAR ]
+    </button>
+</div>
+
 <script>
     let datosGlobales = [];
     let zplGenerado   = '';
-    let modoConexion  = 'network'; // 'network' | 'usb'
+    let modoConexion  = 'usb'; // 'network' | 'usb'
     let portsData     = []; // almacena {id, name, printerName} de cada puerto
 
     // ─── Modo de conexión ─────────────────────────────────────────────────────
@@ -634,6 +668,8 @@
             if (!datosGlobales.length) return;
 
             const columnas = Object.keys(datosGlobales[0]);
+
+            // Poblar selector de texto principal
             const select = document.getElementById('columnSelect');
             select.innerHTML = '<option value="">— elige una columna —</option>';
             columnas.forEach(col => {
@@ -642,6 +678,19 @@
                 select.appendChild(opt);
             });
             if (columnas.length === 1) select.value = columnas[0];
+
+            // Poblar selector de fecha
+            const selFecha = document.getElementById('columnFecha');
+            selFecha.innerHTML = '<option value="">— elige columna de fecha —</option>';
+            columnas.forEach(col => {
+                const opt = document.createElement('option');
+                opt.value = col; opt.textContent = col;
+                selFecha.appendChild(opt);
+            });
+            // Auto-seleccionar columna que contenga "fecha" en su nombre
+            const colFecha = columnas.find(c => c.toLowerCase().includes('fecha') || c.toLowerCase().includes('date'));
+            if (colFecha) selFecha.value = colFecha;
+
             document.getElementById('columnCard').classList.add('visible');
         };
         reader.readAsArrayBuffer(archivo);
@@ -664,54 +713,76 @@
     // ^PW406 = ancho 2" | ^LL203 = alto 1" | ambos en dots a 203dpi
     // ─── Generar ZPL calibrado para 2x1" (406x203 dots) con Auto-Escalado ────
     function generarZPL(valores, conQR) {
+        // 'valores' es array de { texto, fecha }
+        // Layout 2x1" = 406x203 dots @ 203dpi
+        // Con fecha: texto principal arriba, fecha debajo en fuente más pequeña
         let zpl = '';
 
-        valores.forEach(texto => {
-            // Convertimos a string por seguridad para contar los caracteres
+        valores.forEach(({ texto, fecha }) => {
             const txtStr = String(texto);
-            const len = txtStr.length;
+            const len    = txtStr.length;
+            const tieneFecha = fecha && fecha.trim() !== '';
 
             zpl += '^XA\n';
-            zpl += '^MMT\n';     
-            zpl += '^LH0,0\n';   
+            zpl += '^MMT\n';
+            zpl += '^LH0,0\n';
 
             if (conQR) {
-                // --- CÓDIGO QR ---
-                // X=275: Empujado al máximo hacia la derecha
-                zpl += '^FO275,40\n';
-                zpl += '^BQN,2,4\n';
+                // ── QR lado derecho: módulo 5 = ~100x100 dots, más grande ──
+                // X=248 deja 248+100=348 < 406 ✓  Y=8 pegado arriba
+                zpl += '^FO248,52\n';
+                zpl += '^BQN,2,5\n';
                 zpl += `^FDMM,A${txtStr}^FS\n`;
-                
-                // --- TEXTO AUTO-AJUSTABLE ---
-                // Tamaños base por defecto (ideales para 1 a 6 caracteres)
-                let h = 60; 
-                let w = 50; 
-                let y = 75;
 
-                // Cerebro de escalado: Reducimos la fuente si el texto es muy largo
-                if (len > 14) {
-                    h = 35; w = 22; y = 85; // Letra minúscula y delgada para códigos enormes
-                } else if (len > 10) {
-                    h = 45; w = 30; y = 80; // Códigos de ~12 caracteres (como el de tu foto)
-                } else if (len > 6) {
-                    h = 55; w = 40; y = 75; // Códigos intermedios
+                // ── Texto principal izquierda: fuentes más grandes ──
+                // Área izq disponible: ~240 dots de ancho
+                let h = 45, w = 38;
+                if      (len > 14) { h = 30; w = 24; }
+                else if (len > 10) { h = 38; w = 30; }
+                else if (len > 6)  { h = 42; w = 34; }
+
+                // Centrado vertical: (203 - altoTotal) / 2
+                // altoTotal = h_texto + gap + h_fecha (si hay)
+                const hFecha = 28;
+                const gap    = 6;
+                const altoTotal = tieneFecha ? h + gap + hFecha : h;
+                const yTexto = Math.round((203 - altoTotal) / 2);
+
+                zpl += `^FO15,${yTexto}\n`;
+                zpl += `^A0N,${h},${w}\n`;
+                zpl += `^FD${txtStr}^FS\n`;
+
+                // ── Fecha debajo ──
+                if (tieneFecha) {
+                    const yFecha = yTexto + h + gap;
+                    zpl += `^FO15,${yFecha}\n`;
+                    zpl += `^A0N,${hFecha},24\n`;
+                    zpl += `^FD${fecha}^FS\n`;
                 }
 
-                zpl += `^FO20,${y}\n`;
-                zpl += `^A0N,${h},${w}\n`;
-                zpl += `^FD${txtStr}^FS\n`;
-
             } else {
-                // Solo texto (sin QR) con auto-ajuste también
-                let h = 80; let w = 70; let y = 60;
-                
-                if (len > 14) { h = 50; w = 40; y = 75; }
-                else if (len > 10) { h = 65; w = 55; y = 70; }
+                // ── Solo texto + fecha centrados horizontalmente ──
+                let h = 80, w = 70;
+                if      (len > 14) { h = 50; w = 40; }
+                else if (len > 10) { h = 65; w = 55; }
+
+                const hFecha = 30;
+                const gap    = 8;
+                const altoTotal = tieneFecha ? h + gap + hFecha : h;
+                const y = Math.round((203 - altoTotal) / 2);
 
                 zpl += `^FO0,${y}\n`;
-                zpl += '^FB406,1,0,C,0\n'; // Caja de texto del ancho total
+                zpl += '^FB406,1,0,C,0\n';
                 zpl += `^A0N,${h},${w}\n`;
                 zpl += `^FD${txtStr}^FS\n`;
+
+                if (tieneFecha) {
+                    const yFecha = y + h + gap;
+                    zpl += `^FO0,${yFecha}\n`;
+                    zpl += '^FB406,1,0,C,0\n';
+                    zpl += `^A0N,${hFecha},26\n`;
+                    zpl += `^FD${fecha}^FS\n`;
+                }
             }
 
             zpl += '^PQ1\n';
@@ -722,15 +793,46 @@
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
+    // ─── Convertir fecha de Excel a texto legible ────────────────────────────
+    // Excel almacena fechas como número serial (días desde 1900-01-01)
+    // Ej: 45000 → "25/02/2023"
+    function formatearFecha(valor) {
+        if (valor === undefined || valor === null || valor === '') return '';
+        const str = valor.toString().trim();
+        if (str === '') return '';
+
+        // Si ya es texto con formato de fecha (contiene / o -), devolverlo tal cual
+        if (isNaN(str) || str.includes('/') || str.includes('-')) return str;
+
+        // Es número serial de Excel → convertir a fecha
+        const num = parseFloat(str);
+        if (!isFinite(num) || num < 1) return str;
+
+        // Excel tiene un bug histórico: cuenta 1900 como año bisiesto (día 60 no existe)
+        const excelEpoch = new Date(1899, 11, 30); // 30 dic 1899
+        const fecha = new Date(excelEpoch.getTime() + num * 86400000);
+
+        if (isNaN(fecha.getTime())) return str;
+
+        const d = String(fecha.getDate()).padStart(2, '0');
+        const m = String(fecha.getMonth() + 1).padStart(2, '0');
+        const y = fecha.getFullYear();
+        return `${d}/${m}/${y}`;
+    }
+
     function obtenerValores() {
         const columna = document.getElementById('columnSelect').value;
         if (!columna) { alert("Selecciona la columna a usar."); return null; }
         if (!datosGlobales.length) { alert("Sube un archivo primero."); return null; }
 
+        const colFecha = document.getElementById('columnFecha').value;
+
         const valores = datosGlobales
-            .map(fila => fila[columna])
-            .filter(v => v !== undefined && v !== null && v.toString().trim() !== '')
-            .map(v => v.toString().trim());
+            .filter(fila => fila[columna] !== undefined && fila[columna] !== null && fila[columna].toString().trim() !== '')
+            .map(fila => ({
+                texto: fila[columna].toString().trim(),
+                fecha: colFecha ? formatearFecha(fila[colFecha]) : ''
+            }));
 
         if (!valores.length) { alert("La columna no tiene datos."); return null; }
         return valores;
@@ -821,32 +923,135 @@
         }
     }
     // ─── Imprimir etiqueta de prueba ─────────────────────────────────────────
-    async function imprimirPrueba() {
-        if (modoConexion === 'network') {
-            const ip   = document.getElementById('zebraIP').value.trim();
-            const port = parseInt(document.getElementById('zebraPort').value) || 9100;
-            if (!ip) { alert("Ingresa la IP de la impresora."); return; }
-            setStatus('Enviando prueba por red...');
-            const testZPL = '^XA^MMT^PW406^LL203^FO0,80^FB406,1,0,C,0^A0N,40,40^FDTEST OK^FS^PQ1^XZ';
-            const result = await window.zebraAPI.sendZPLNetwork(ip, port, testZPL);
-            if (result.ok) setStatus('✓ Prueba enviada — revisa si salió papel', 'ok');
-            else setStatus('✗ ' + result.error, 'err');
-        } else {
-            const comPort = document.getElementById('comPortSelect').value;
-            if (!comPort) { alert("Selecciona la impresora USB primero."); return; }
-            const portInfo = portsData.find(p => p.id === comPort);
-            const printerName = portInfo ? portInfo.printerName : null;
-            setStatus(`Enviando prueba a ${comPort}...`);
-            const result = await window.zebraAPI.testPrint(comPort, printerName);
-            if (result.ok) {
-                setStatus('✓ Prueba enviada — revisa si salió papel', 'ok');
-                document.getElementById('zplPreview').classList.add('visible');
-                document.getElementById('zplBox').textContent = result.zpl;
-            } else {
-                setStatus('✗ ' + result.error, 'err');
-            }
-        }
+    // ─── Preview visual de etiquetas ────────────────────────────────────────
+    let previewData  = [];   // [{texto, fecha}]
+    let previewIndex = 0;
+    let previewConQR = false;
+
+    function mostrarPreview() {
+        const valores = obtenerValores();
+        if (!valores) return;
+
+        previewData  = valores;
+        previewIndex = 0;
+        previewConQR = document.getElementById('toggleQR')?.checked ?? true;
+
+        const modal = document.getElementById('previewModal');
+        modal.style.display = 'flex';
+        document.getElementById('previewTotal').textContent = valores.length;
+        dibujarPreview();
     }
+
+    function cerrarPreview() {
+        document.getElementById('previewModal').style.display = 'none';
+    }
+
+    function previewNav(dir) {
+        previewIndex = Math.max(0, Math.min(previewData.length - 1, previewIndex + dir));
+        dibujarPreview();
+    }
+
+    function dibujarPreview() {
+        const canvas = document.getElementById('previewCanvas');
+        const ctx    = canvas.getContext('2d');
+        const W = canvas.width;   // 480px
+        const H = canvas.height;  // 240px
+        const item = previewData[previewIndex];
+        const texto = item.texto || '';
+        const fecha = item.fecha || '';
+
+        // Fondo blanco
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+
+        // Relación: 406 dots → 480px, 203 dots → 240px
+        const scaleX = W / 406;
+        const scaleY = H / 203;
+
+        document.getElementById('previewIdx').textContent  = previewIndex + 1;
+        document.getElementById('previewCode').textContent = texto.length > 30 ? texto.slice(0,28)+'…' : texto;
+
+        if (previewConQR) {
+            // ── QR placeholder: módulo 5 = ~100x100 dots ──
+            const qrX = 248 * scaleX;
+            const qrY = 52  * scaleY;
+            const qrS = 150 * scaleX;
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(qrX, qrY, qrS, qrS);
+            ctx.fillStyle = '#222';
+            const cell = qrS / 7;
+            const pattern = [[0,0],[1,0],[2,0],[3,0],[4,0],[5,0],[6,0],
+                             [0,6],[6,6],[0,1],[0,2],[0,3],[0,4],[0,5],
+                             [6,1],[6,2],[6,3],[6,4],[6,5],
+                             [2,2],[3,2],[4,2],[2,3],[4,3],[2,4],[3,4],[4,4],
+                             [3,3],[1,3],[5,3],[3,1],[3,5]];
+            pattern.forEach(([cx,cy]) => ctx.fillRect(qrX+cx*cell+1, qrY+cy*cell+1, cell-1, cell-1));
+
+            // ── Texto principal ──
+            const len = texto.length;
+            let fs = 45, fw = 38;
+            if      (len > 14) { fs = 30; fw = 24; }
+            else if (len > 10) { fs = 38; fw = 30; }
+            else if (len > 6)  { fs = 42; fw = 34; }
+            const tieneFecha = fecha.trim() !== '';
+            const hFecha = 28, gap = 6;
+            const altoTotal = tieneFecha ? fs + gap + hFecha : fs;
+            const yTexto = Math.round((203 - altoTotal) / 2);
+
+            ctx.fillStyle = '#111';
+            ctx.font = `bold ${Math.round(fs * scaleY)}px monospace`;
+            ctx.textBaseline = 'top';
+            ctx.fillText(texto, 15 * scaleX, yTexto * scaleY, 230 * scaleX);
+
+            if (tieneFecha) {
+                const yFecha = yTexto + fs + gap;
+                ctx.font = `${Math.round(hFecha * scaleY)}px monospace`;
+                ctx.fillStyle = '#444';
+                ctx.fillText(fecha, 15 * scaleX, yFecha * scaleY, 230 * scaleX);
+            }
+
+        } else {
+            // ── Solo texto centrado ──
+            const len = texto.length;
+            let fs = 80;
+            if      (len > 14) { fs = 50; }
+            else if (len > 10) { fs = 65; }
+            const tieneFecha = fecha.trim() !== '';
+            const hFecha = 30, gap = 8;
+            const altoTotal = tieneFecha ? fs + gap + hFecha : fs;
+            const y = Math.round((203 - altoTotal) / 2);
+
+            ctx.fillStyle = '#111';
+            ctx.font = `bold ${Math.round(fs * scaleY)}px monospace`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(texto, W/2, y * scaleY, W - 20);
+
+            if (tieneFecha) {
+                const yFecha = y + fs + gap;
+                ctx.font = `${Math.round(hFecha * scaleY)}px monospace`;
+                ctx.fillStyle = '#444';
+                ctx.fillText(fecha, W/2, yFecha * scaleY, W - 20);
+            }
+            ctx.textAlign = 'left';
+        }
+
+        // ── Dimensiones ──
+        ctx.fillStyle = '#ccc';
+        ctx.font = '10px monospace';
+        ctx.fillText('2" × 1"  |  406×203 dots  |  203dpi', 8, H - 14);
+    }
+    // Cerrar preview con ESC
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') cerrarPreview();
+        if (e.key === 'ArrowRight') { if(previewData.length) previewNav(1); }
+        if (e.key === 'ArrowLeft')  { if(previewData.length) previewNav(-1); }
+    });
+
+    // Auto-detectar puertos al cargar — con delay para que Electron esté listo
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(detectarPuertos, 800);
+    });
 </script>
 </body>
 </html>

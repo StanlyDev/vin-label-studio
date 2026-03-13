@@ -85,17 +85,23 @@ ipcMain.handle('send-zpl-usb', async (event, { port, zpl }) => {
 ipcMain.handle('list-com-ports', async () => {
   return new Promise((resolve) => {
     // Solo traemos impresoras Zebra que ESTÉN COMPARTIDAS
-    const cmd = `powershell "Get-Printer | Where-Object { $_.Name -match 'Zebra|ZDesigner' -and $_.Shared -eq $true } | Select-Object Name, ShareName | ConvertTo-Json"`
-    
-    exec(cmd, (err, stdout) => {
-      if (err || !stdout) return resolve([])
+    // Traer todas las Zebra, compartidas o no
+    // Si está compartida usamos ShareName (para \\localhost\ShareName)
+    // Si no está compartida usamos PortName directo (USB006)
+    const cmd = `powershell -NoProfile -Command "Get-Printer | Where-Object { $_.Name -match 'Zebra|ZDesigner' } | Select-Object Name, ShareName, PortName, Shared | ConvertTo-Json"`
+
+    exec(cmd, { timeout: 8000 }, (err, stdout) => {
+      if (err || !stdout || !stdout.trim()) return resolve([])
       try {
-        const printers = JSON.parse(stdout)
-        const list = Array.isArray(printers) ? printers : [printers]
-        
+        const raw = JSON.parse(stdout.trim())
+        const list = Array.isArray(raw) ? raw : [raw]
+
         resolve(list.map(p => ({
-          id: p.ShareName, // Esto viaja al frontend y regresa como 'port'
-          printerName: p.Name
+          id:          p.Shared && p.ShareName ? p.ShareName : p.PortName,
+          printerName: p.Name,
+          shared:      p.Shared || false,
+          shareName:   p.ShareName || null,
+          portName:    p.PortName || null
         })))
       } catch (e) {
         resolve([])
