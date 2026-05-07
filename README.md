@@ -39,7 +39,7 @@ Label Studio es una aplicación de escritorio autónoma diseñada para automatiz
 - `index.html` (Lógica interna) — La función `generarZPL()` contiene las coordenadas X/Y y multiplicadores hardcodeados. Cualquier cambio en el tamaño físico del insumo (papel) requiere recalibrar la matemática aquí.
 
 ## Notas de seguridad y operación
-- **Requisito crítico USB:** Para que el método de impresión USB funcione, la impresora Zebra *debe* estar configurada en Windows con la opción "Compartir esta impresora" activada. El sistema utiliza el "ShareName" para crear un túnel local (`\\localhost\NombreCompartido`) y enviar los datos crudos.
+- **Requisito crítico USB:** Para que el método de impresión USB funcione, la impresora Zebra *debe* estar configurada en Windows con la opción "Compartir esta impresora" activada. El sistema utiliza el "ShareName" para crear un túnel local (`\\localhost\ZebraZT`) y enviar los datos crudos.
 - **Protección de Hardware:** El código ZPL generado no incluye comandos de escritura en memoria no volátil (`^JUS`, `^MNA`). Esto es intencional para evitar la degradación prematura y destrucción de la placa EEPROM de la impresora durante la impresión masiva.
 - **Seguridad Electron:** La arquitectura utiliza `contextIsolation: true` y `nodeIntegration: false` para evitar que scripts maliciosos cargados en el frontend tengan acceso al sistema de archivos del equipo.
 
